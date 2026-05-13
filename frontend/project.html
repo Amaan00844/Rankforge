@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Book Summarizer</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ── BASE ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink: #0f0e0b;
+    --cream: #f7f3ec;
+    --light: #fdf9f3;
+    /* theme vars — overridden by JS */
+    --primary: #e8993a;
+    --primary-dark: #c07820;
+    --primary-glow: #e8993a33;
+    --hero-bg: #0f0e0b;
+    --hero-grad1: #e8993a22;
+    --hero-grad2: #c0472b18;
+    --band-bg: #fdf9f3;
+    --core-bg: #0f0e0b;
+    --laws-bg: #1a1510;
+    --laws-hover: #2a2018;
+    --conclusion-bg: #c0472b;
+  }
+
+  body {
+    background: var(--cream);
+    color: var(--ink);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  /* ── APP SHELL ── */
+  #app-shell {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #0a0a0f;
+    padding: 2rem 1.5rem;
+  }
+
+  .shell-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2rem, 6vw, 3.8rem);
+    font-weight: 900;
+    color: #f0ead8;
+    text-align: center;
+    line-height: 1.1;
+    margin-bottom: 0.5rem;
+  }
+
+  .shell-title span { color: var(--primary); font-style: italic; }
+
+  .shell-sub {
+    color: #666;
+    font-size: 0.95rem;
+    text-align: center;
+    margin-bottom: 3rem;
+    letter-spacing: 0.03em;
+  }
+
+  /* ── STEP CARD ── */
+  .step-card {
+    background: #13131a;
+    border: 1px solid #1e1e2e;
+    border-radius: 20px;
+    padding: 2.5rem;
+    width: 100%;
+    max-width: 620px;
+    animation: fadeUp 0.5s ease both;
+  }
+
+  .step-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--primary);
+    font-weight: 600;
+    margin-bottom: 0.6rem;
+  }
+
+  .step-heading {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #f0ead8;
+    margin-bottom: 0.4rem;
+  }
+
+  .step-desc {
+    font-size: 0.88rem;
+    color: #666;
+    margin-bottom: 1.8rem;
+    line-height: 1.6;
+  }
+
+  /* ── INPUTS ── */
+  .input-row {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .input-field {
+    flex: 1;
+    min-width: 200px;
+    background: #0a0a0f;
+    border: 1.5px solid #2a2a3e;
+    border-radius: 10px;
+    padding: 0.85rem 1.1rem;
+    color: #f0ead8;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.92rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .input-field:focus { border-color: var(--primary); }
+  .input-field::placeholder { color: #444; }
+
+  /* file drop zone */
+  .drop-zone {
+    border: 2px dashed #2a2a3e;
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: center;
+    color: #555;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    margin-bottom: 1rem;
+    position: relative;
+  }
+
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--primary);
+    background: rgba(232,153,58,0.04);
+    color: #aaa;
+  }
+
+  .drop-zone input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+
+  .drop-icon { font-size: 1.8rem; margin-bottom: 0.4rem; display: block; }
+
+  .or-divider {
+    display: flex; align-items: center; gap: 1rem;
+    color: #333; font-size: 0.75rem; letter-spacing: 0.1em;
+    text-transform: uppercase; margin: 1rem 0;
+  }
+  .or-divider::before, .or-divider::after {
+    content: ''; flex: 1; height: 1px; background: #1e1e2e;
+  }
+
+  /* ── THEME PICKER ── */
+  .theme-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .theme-swatch {
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color 0.2s, transform 0.2s;
+    position: relative;
+  }
+
+  .theme-swatch:hover { transform: translateY(-2px); }
+  .theme-swatch.selected { border-color: #fff; }
+
+  .swatch-preview {
+    height: 70px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .swatch-preview-text {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: white;
+    font-style: italic;
+    opacity: 0.9;
+    z-index: 1;
+    position: relative;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  }
+
+  .swatch-label {
+    background: #0d0d12;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.72rem;
+    color: #aaa;
+    text-align: center;
+    font-weight: 500;
+  }
+
+  .swatch-check {
+    position: absolute;
+    top: 6px; right: 6px;
+    width: 18px; height: 18px;
+    background: white;
+    border-radius: 50%;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+  }
+
+  .theme-swatch.selected .swatch-check { display: flex; }
+  .swatch-check svg { width: 10px; height: 10px; }
+
+  /* ── BUTTONS ── */
+  .btn-primary {
+    width: 100%;
+    padding: 0.95rem 1.5rem;
+    background: var(--primary);
+    color: #0a0a0f;
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.15s;
+    letter-spacing: 0.02em;
+  }
+
+  .btn-primary:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .btn-secondary {
+    background: transparent;
+    border: 1.5px solid #2a2a3e;
+    color: #888;
+    border-radius: 10px;
+    padding: 0.7rem 1.2rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+    margin-top: 0.75rem;
+    width: 100%;
+  }
+
+  .btn-secondary:hover { border-color: #555; color: #ccc; }
+
+  /* ── PROGRESS ── */
+  #progress-screen {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 3rem 2rem;
+    text-align: center;
+    max-width: 420px;
+    width: 100%;
+  }
+
+  .progress-ring-wrap {
+    position: relative;
+    width: 90px; height: 90px;
+  }
+
+  .progress-ring {
+    transform: rotate(-90deg);
+    width: 90px; height: 90px;
+  }
+
+  .progress-ring-bg { fill: none; stroke: #1e1e2e; stroke-width: 6; }
+  .progress-ring-fill {
+    fill: none;
+    stroke: var(--primary);
+    stroke-width: 6;
+    stroke-linecap: round;
+    stroke-dasharray: 251.2;
+    stroke-dashoffset: 251.2;
+    transition: stroke-dashoffset 0.4s ease;
+  }
+
+  .progress-pct {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Playfair Display', serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--primary);
+  }
+
+  .progress-label {
+    font-size: 1rem;
+    color: #f0ead8;
+    font-family: 'Playfair Display', serif;
+  }
+
+  .progress-step {
+    font-size: 0.8rem;
+    color: #555;
+    letter-spacing: 0.05em;
+  }
+
+  /* ── OUTPUT PAGE ── */
+  #output-page { display: none; }
+
+  /* HERO */
+  .hero {
+    min-height: 100vh;
+    background: var(--hero-bg);
+    display: grid;
+    place-items: center;
+    text-align: center;
+    padding: 4rem 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 80% 60% at 50% 110%, var(--hero-grad1) 0%, transparent 70%),
+                radial-gradient(ellipse 50% 40% at 20% 10%, var(--hero-grad2) 0%, transparent 60%);
+  }
+
+  .hero-eyebrow {
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--primary);
+    margin-bottom: 1.5rem;
+    animation: fadeUp 0.8s ease both;
+  }
+
+  .hero-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(3rem, 10vw, 7rem);
+    font-weight: 900;
+    line-height: 1;
+    color: var(--cream);
+    animation: fadeUp 0.8s 0.15s ease both;
+    position: relative;
+    z-index: 1;
+    word-break: break-word;
+  }
+
+  .hero-title span {
+    display: block;
+    color: var(--primary);
+    font-style: italic;
+  }
+
+  .hero-author {
+    margin-top: 1.5rem;
+    font-size: 1rem;
+    color: #aaa;
+    letter-spacing: 0.1em;
+    animation: fadeUp 0.8s 0.3s ease both;
+  }
+
+  .hero-tagline {
+    margin-top: 2rem;
+    margin-bottom: 6rem;
+    font-size: 1.05rem;
+    color: #ccc;
+    max-width: 500px;
+    animation: fadeUp 0.8s 0.45s ease both;
+  }
+
+  .scroll-hint {
+    position: absolute;
+    bottom: 2rem; left: 50%;
+    transform: translateX(-50%);
+    display: flex; flex-direction: column;
+    align-items: center; gap: 0.5rem;
+    color: #666; font-size: 0.75rem;
+    letter-spacing: 0.15em; text-transform: uppercase;
+    animation: fadeUp 1s 1s ease both;
+    pointer-events: none; white-space: nowrap;
+  }
+
+  .scroll-line {
+    width: 1px; height: 48px;
+    background: linear-gradient(to bottom, transparent, var(--primary));
+    animation: extendLine 1.5s 1.5s ease infinite;
+  }
+
+  /* SECTIONS */
+  section { padding: 5rem 2rem; }
+  .container { max-width: 860px; margin: 0 auto; }
+
+  .summary-band {
+    background: var(--band-bg);
+    border-top: 3px solid var(--primary);
+    border-bottom: 3px solid var(--primary);
+  }
+
+  .section-label {
+    font-size: 0.7rem; font-weight: 500;
+    letter-spacing: 0.35em; text-transform: uppercase;
+    color: var(--primary); margin-bottom: 1rem;
+  }
+
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(1.8rem, 5vw, 3rem);
+    font-weight: 700; line-height: 1.2;
+    margin-bottom: 1.5rem; color: var(--ink);
+  }
+
+  .lead-text { font-size: 1.05rem; line-height: 1.85; color: #333; max-width: 680px; }
+
+  .ornament { text-align: center; color: var(--primary); font-size: 1.5rem; margin: 2rem 0; opacity: 0.5; }
+
+  /* CORE IDEA */
+  .core-idea { background: var(--core-bg); color: var(--cream); }
+  .core-idea .section-title { color: var(--cream); }
+
+  .quote-block {
+    border-left: 4px solid var(--primary);
+    padding: 1.5rem 2rem; margin: 2.5rem 0;
+    background: rgba(255,255,255,0.04);
+    border-radius: 0 8px 8px 0;
+  }
+
+  .quote-block p {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.3rem; font-style: italic;
+    color: #f0ead8; line-height: 1.6;
+  }
+
+  /* KEY POINTS */
+  .key-points { background: var(--cream); }
+
+  .points-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1.5rem; margin-top: 2.5rem;
+  }
+
+  .point-card {
+    background: white; border-radius: 12px;
+    padding: 1.8rem; border-top: 4px solid var(--primary);
+    box-shadow: 0 2px 20px rgba(0,0,0,0.06);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    position: relative;
+  }
+
+  .point-card:hover { transform: translateY(-4px); box-shadow: 0 8px 30px rgba(0,0,0,0.1); }
+
+  .point-number {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.5rem; font-weight: 900;
+    opacity: 0.07; position: absolute;
+    top: 1rem; right: 1.2rem; line-height: 1;
+  }
+
+  .point-icon {
+    width: 2.4rem; height: 2.4rem; margin-bottom: 0.9rem;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 8px; padding: 0.35rem;
+    background: var(--primary-glow);
+  }
+
+  .point-icon svg { width: 100%; height: 100%; }
+
+  .point-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.05rem; font-weight: 700;
+    margin-bottom: 0.6rem; color: var(--ink);
+  }
+
+  .point-desc { font-size: 0.88rem; color: #555; line-height: 1.65; }
+
+  /* FOUR LAWS */
+  .four-laws { background: var(--laws-bg); color: var(--cream); }
+  .four-laws .section-title { color: var(--cream); }
+
+  .laws-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1px; margin-top: 2.5rem;
+    background: #333; border-radius: 12px; overflow: hidden;
+  }
+
+  .law-cell {
+    background: var(--laws-bg);
+    padding: 2rem 1.5rem; text-align: center;
+    transition: background 0.2s;
+  }
+
+  .law-cell:hover { background: var(--laws-hover); }
+
+  .law-num {
+    font-family: 'Playfair Display', serif;
+    font-size: 3rem; font-weight: 900;
+    color: var(--primary); line-height: 1; margin-bottom: 0.5rem;
+  }
+
+  .law-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 1rem; font-style: italic;
+    color: #ccc; margin-bottom: 0.6rem;
+  }
+
+  .law-verb {
+    font-size: 0.75rem; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--primary); font-weight: 500;
+  }
+
+  .law-desc { font-size: 0.85rem; color: #888; margin-top: 0.8rem; line-height: 1.55; }
+
+  /* CONCLUSION */
+  .conclusion { background: var(--conclusion-bg); color: white; }
+  .conclusion .section-title { color: white; }
+  .conclusion .section-label { color: rgba(255,255,255,0.6); }
+  .conclusion .lead-text { color: rgba(255,255,255,0.88); }
+
+  .final-quote {
+    margin-top: 2.5rem; padding: 2rem;
+    background: rgba(0,0,0,0.15); border-radius: 12px;
+    font-family: 'Playfair Display', serif;
+    font-size: 1.2rem; font-style: italic;
+    color: rgba(255,255,255,0.9); line-height: 1.7; text-align: center;
+  }
+
+  /* FOOTER */
+  #output-footer {
+    background: var(--ink); color: #555;
+    text-align: center; padding: 2rem;
+    font-size: 0.8rem; letter-spacing: 0.05em;
+  }
+
+  /* ── FLOATING RESET BTN ── */
+  .fab-reset {
+    position: fixed; bottom: 2rem; right: 2rem;
+    background: var(--primary); color: #0a0a0f;
+    border: none; border-radius: 50px;
+    padding: 0.75rem 1.4rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.82rem; font-weight: 600;
+    cursor: pointer; display: none;
+    align-items: center; gap: 0.5rem;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    transition: transform 0.2s, opacity 0.2s;
+    z-index: 999;
+  }
+
+  .fab-reset:hover { transform: translateY(-2px); }
+  .fab-reset svg { width: 14px; height: 14px; }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes extendLine {
+    0%,100% { opacity: 0.3; transform: scaleY(0.6); transform-origin: top; }
+    50%      { opacity: 1;   transform: scaleY(1);   transform-origin: top; }
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* ── ERROR ── */
+  .error-msg {
+    background: rgba(192,71,43,0.15);
+    border: 1px solid rgba(192,71,43,0.4);
+    border-radius: 8px; padding: 0.8rem 1rem;
+    font-size: 0.85rem; color: #f0a090;
+    margin-top: 1rem; display: none;
+  }
+
+  /* ── FILE TAG ── */
+  .file-tag {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    background: rgba(232,153,58,0.12);
+    border: 1px solid rgba(232,153,58,0.25);
+    border-radius: 6px; padding: 0.3rem 0.75rem;
+    font-size: 0.8rem; color: var(--primary);
+    margin-top: 0.5rem; display: none;
+  }
+
+  @media (max-width: 480px) {
+    .theme-grid { grid-template-columns: repeat(2, 1fr); }
+    .step-card { padding: 1.8rem 1.4rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════
+     APP SHELL  (Step 1 & 2)
+════════════════════════════════════ -->
+<div id="app-shell">
+
+  <p class="shell-title">AI Book<span>Summarizer</span></p>
+  <p class="shell-sub">Paste a book name or upload a PDF — get a beautiful themed summary page</p>
+
+  <!-- STEP 1: Input -->
+  <div class="step-card" id="step-input">
+    <p class="step-label">Step 1 of 2</p>
+    <h2 class="step-heading">Which book?</h2>
+    <p class="step-desc">Type the book name (and optional author), or upload a PDF of the book / notes.</p>
+
+    <input type="text" class="input-field" id="book-name" placeholder="e.g. Atomic Habits by James Clear" style="width:100%; margin-bottom:1rem;" />
+
+    <div class="or-divider">or upload PDF</div>
+
+    <div class="drop-zone" id="drop-zone">
+      <input type="file" id="pdf-upload" accept=".pdf,.txt" />
+      <span class="drop-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      </span>
+      <div>Drop PDF / TXT here or <strong style="color:#888">click to browse</strong></div>
+      <div style="font-size:0.75rem; margin-top:0.3rem; color:#444;">Supports .pdf and .txt</div>
+    </div>
+    <div class="file-tag" id="file-tag">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      <span id="file-name-display"></span>
+    </div>
+
+    <button class="btn-primary" id="btn-next" style="margin-top:1.5rem;" onclick="goToStep2()">
+      Choose Theme →
+    </button>
+    <div class="error-msg" id="error-step1">Please enter a book name or upload a file.</div>
+  </div>
+
+  <!-- STEP 2: Theme -->
+  <div class="step-card" id="step-theme" style="display:none;">
+    <p class="step-label">Step 2 of 2</p>
+    <h2 class="step-heading">Pick your theme</h2>
+    <p class="step-desc">Choose a colour palette — your summary page will be styled to match.</p>
+
+    <div class="theme-grid" id="theme-grid"></div>
+
+    <button class="btn-primary" id="btn-generate" onclick="generateSummary()">
+      ✦ Generate Summary
+    </button>
+    <button class="btn-secondary" onclick="goBack()">← Back</button>
+    <div class="error-msg" id="error-step2">Please select a theme first.</div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════
+     PROGRESS SCREEN
+════════════════════════════════════ -->
+<div id="progress-screen" style="display:none; background:#0a0a0f; min-height:100vh; flex-direction:column; align-items:center; justify-content:center; gap:1.5rem; text-align:center; padding:2rem;">
+  <div class="progress-ring-wrap">
+    <svg class="progress-ring" viewBox="0 0 90 90">
+      <circle class="progress-ring-bg" cx="45" cy="45" r="40"/>
+      <circle class="progress-ring-fill" id="ring-fill" cx="45" cy="45" r="40"/>
+    </svg>
+    <div class="progress-pct" id="pct-label">0%</div>
+  </div>
+  <div class="progress-label" id="prog-label">Initializing...</div>
+  <div class="progress-step" id="prog-step">Please wait while AI generates your summary</div>
+</div>
+
+<!-- ════════════════════════════════════
+     OUTPUT PAGE (injected by JS)
+════════════════════════════════════ -->
+<div id="output-page"></div>
+<footer id="output-footer" style="display:none;">
+  <p>AI-Generated Summary · Crafted by Amaan Chauhan</p>
+</footer>
+
+<!-- FAB Reset -->
+<button class="fab-reset" id="fab-reset" onclick="resetApp()">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></svg>
+  New Summary
+</button>
+
+<script>
+// ═══════════════════════════════════════════
+// THEME DEFINITIONS
+// ═══════════════════════════════════════════
+const THEMES = [
+  {
+    id: 'amber',
+    label: 'Amber Gold',
+    primary: '#e8993a',
+    primaryDark: '#c07820',
+    primaryGlow: '#e8993a33',
+    heroBg: '#0f0e0b',
+    heroGrad1: '#e8993a22',
+    heroGrad2: '#c0472b18',
+    bandBg: '#fdf9f3',
+    coreBg: '#0f0e0b',
+    lawsBg: '#1a1510',
+    lawsHover: '#2a2018',
+    conclusionBg: '#c0472b',
+    swatchGrad: 'linear-gradient(135deg, #1a1208 0%, #e8993a 100%)',
+  },
+  {
+    id: 'ocean',
+    label: 'Ocean Blue',
+    primary: '#3b9eff',
+    primaryDark: '#1a7fd4',
+    primaryGlow: '#3b9eff33',
+    heroBg: '#040d1a',
+    heroGrad1: '#3b9eff22',
+    heroGrad2: '#0066cc18',
+    bandBg: '#f0f6ff',
+    coreBg: '#040d1a',
+    lawsBg: '#071428',
+    lawsHover: '#0d2040',
+    conclusionBg: '#1a5fa8',
+    swatchGrad: 'linear-gradient(135deg, #040d1a 0%, #3b9eff 100%)',
+  },
+  {
+    id: 'emerald',
+    label: 'Emerald',
+    primary: '#2ecc71',
+    primaryDark: '#1aaa55',
+    primaryGlow: '#2ecc7133',
+    heroBg: '#050f08',
+    heroGrad1: '#2ecc7122',
+    heroGrad2: '#1a8a4818',
+    bandBg: '#f0fdf4',
+    coreBg: '#050f08',
+    lawsBg: '#071510',
+    lawsHover: '#0d2518',
+    conclusionBg: '#1a7a42',
+    swatchGrad: 'linear-gradient(135deg, #050f08 0%, #2ecc71 100%)',
+  },
+  {
+    id: 'crimson',
+    label: 'Crimson',
+    primary: '#e74c3c',
+    primaryDark: '#c0392b',
+    primaryGlow: '#e74c3c33',
+    heroBg: '#0f0505',
+    heroGrad1: '#e74c3c22',
+    heroGrad2: '#c0392b18',
+    bandBg: '#fff5f5',
+    coreBg: '#0f0505',
+    lawsBg: '#1a0808',
+    lawsHover: '#2a1010',
+    conclusionBg: '#9b2335',
+    swatchGrad: 'linear-gradient(135deg, #0f0505 0%, #e74c3c 100%)',
+  },
+  {
+    id: 'cyan',
+    label: 'Cyan Frost',
+    primary: '#00d4d4',
+    primaryDark: '#009999',
+    primaryGlow: '#00d4d433',
+    heroBg: '#030d10',
+    heroGrad1: '#00d4d422',
+    heroGrad2: '#007a8818',
+    bandBg: '#f0feff',
+    coreBg: '#030d10',
+    lawsBg: '#051518',
+    lawsHover: '#082225',
+    conclusionBg: '#0a7a85',
+    swatchGrad: 'linear-gradient(135deg, #030d10 0%, #00d4d4 100%)',
+  },
+  {
+    id: 'sand',
+    label: 'Warm Sand',
+    primary: '#c9a96e',
+    primaryDark: '#a07840',
+    primaryGlow: '#c9a96e33',
+    heroBg: '#100e08',
+    heroGrad1: '#c9a96e22',
+    heroGrad2: '#8b6f3518',
+    bandBg: '#fdf8f0',
+    coreBg: '#100e08',
+    lawsBg: '#1a160e',
+    lawsHover: '#2a2215',
+    conclusionBg: '#7a5c28',
+    swatchGrad: 'linear-gradient(135deg, #100e08 0%, #c9a96e 100%)',
+  },
+];
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let selectedTheme = null;
+let uploadedFile = null;
+let bookInput = '';
+
+// ═══════════════════════════════════════════
+// INIT THEME GRID
+// ═══════════════════════════════════════════
+function initThemeGrid() {
+  const grid = document.getElementById('theme-grid');
+  grid.innerHTML = '';
+  THEMES.forEach(t => {
+    const el = document.createElement('div');
+    el.className = 'theme-swatch';
+    el.dataset.id = t.id;
+    el.innerHTML = `
+      <div class="swatch-preview" style="background: ${t.swatchGrad};">
+        <span class="swatch-preview-text">Aa</span>
+        <div class="swatch-check">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+      </div>
+      <div class="swatch-label">${t.label}</div>
+    `;
+    el.onclick = () => selectTheme(t.id, el);
+    grid.appendChild(el);
+  });
+}
+
+function selectTheme(id, el) {
+  document.querySelectorAll('.theme-swatch').forEach(s => s.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedTheme = THEMES.find(t => t.id === id);
+  applyThemeVars(selectedTheme);
+}
+
+function applyThemeVars(t) {
+  const r = document.documentElement.style;
+  r.setProperty('--primary', t.primary);
+  r.setProperty('--primary-dark', t.primaryDark);
+  r.setProperty('--primary-glow', t.primaryGlow);
+  r.setProperty('--hero-bg', t.heroBg);
+  r.setProperty('--hero-grad1', t.heroGrad1);
+  r.setProperty('--hero-grad2', t.heroGrad2);
+  r.setProperty('--band-bg', t.bandBg);
+  r.setProperty('--core-bg', t.coreBg);
+  r.setProperty('--laws-bg', t.lawsBg);
+  r.setProperty('--laws-hover', t.lawsHover);
+  r.setProperty('--conclusion-bg', t.conclusionBg);
+}
+
+// ═══════════════════════════════════════════
+// FILE UPLOAD
+// ═══════════════════════════════════════════
+document.getElementById('pdf-upload').addEventListener('change', function() {
+  if (this.files[0]) handleFile(this.files[0]);
+});
+
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+dz.addEventListener('drop', e => {
+  e.preventDefault();
+  dz.classList.remove('dragover');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+
+function handleFile(file) {
+  uploadedFile = file;
+  const tag = document.getElementById('file-tag');
+  document.getElementById('file-name-display').textContent = file.name;
+  tag.style.display = 'inline-flex';
+}
+
+// ═══════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════
+function goToStep2() {
+  bookInput = document.getElementById('book-name').value.trim();
+  const err = document.getElementById('error-step1');
+  if (!bookInput && !uploadedFile) {
+    err.style.display = 'block';
+    return;
+  }
+  err.style.display = 'none';
+  document.getElementById('step-input').style.display = 'none';
+  document.getElementById('step-theme').style.display = 'block';
+  initThemeGrid();
+}
+
+function goBack() {
+  document.getElementById('step-theme').style.display = 'none';
+  document.getElementById('step-input').style.display = 'block';
+}
+
+// ═══════════════════════════════════════════
+// PROGRESS
+// ═══════════════════════════════════════════
+function setProgress(pct, label, sub) {
+  const fill = document.getElementById('ring-fill');
+  const circumference = 251.2;
+  fill.style.strokeDashoffset = circumference - (circumference * pct / 100);
+  document.getElementById('pct-label').textContent = pct + '%';
+  document.getElementById('prog-label').textContent = label;
+  document.getElementById('prog-step').textContent = sub;
+}
+
+// ═══════════════════════════════════════════
+// MAIN: GENERATE SUMMARY
+// ═══════════════════════════════════════════
+async function generateSummary() {
+  const err2 = document.getElementById('error-step2');
+  if (!selectedTheme) { err2.style.display = 'block'; return; }
+  err2.style.display = 'none';
+
+  // Switch to progress screen
+  document.getElementById('app-shell').style.display = 'none';
+  const ps = document.getElementById('progress-screen');
+  ps.style.display = 'flex';
+  setProgress(5, 'Reading your request...', 'Preparing to call AI');
+
+  try {
+    // Read file if uploaded
+    let fileContext = '';
+    if (uploadedFile) {
+      setProgress(15, 'Reading your file...', uploadedFile.name);
+      fileContext = await readFileAsText(uploadedFile);
+    }
+
+    setProgress(25, 'Calling AI model...', 'Using NVIDIA LLaMA 3.1 70B');
+
+    const bookTitle = bookInput || (uploadedFile ? uploadedFile.name.replace(/\.[^.]+$/, '') : 'Unknown Book');
+
+    const systemPrompt = `You are an expert book summarizer. Your job is to produce a structured JSON summary of a book. 
+Return ONLY valid JSON, no markdown, no explanation, no code fences. The JSON must match this exact schema:
+
+{
+  "title": "Main title (first word or short title)",
+  "subtitle": "Rest of the title (can be empty string)",
+  "author": "Author name",
+  "year": "Publication year or empty string",
+  "tagline": "One-line tagline describing the book",
+  "overallSummary": "2-3 sentence overall summary paragraph 1",
+  "overallSummary2": "2-3 sentence overall summary paragraph 2",
+  "coreIdeaTitle": "Short title for the core idea section",
+  "coreIdeaText": "2-3 sentence explanation of the core idea",
+  "coreQuote": "One powerful quote from or about the book",
+  "coreLoopText": "1-2 sentence about the central framework/loop/system in the book",
+  "keyPoints": [
+    { "title": "Key point title", "desc": "2-sentence description" },
+    ... (exactly 6 key points)
+  ],
+  "law1name": "First law/principle name",
+  "law1verb": "One word (Cue/Goal/Step/Rule etc.)",
+  "law1desc": "One sentence description",
+  "law2name": "Second law/principle name",
+  "law2verb": "One word",
+  "law2desc": "One sentence description",
+  "law3name": "Third law/principle name",
+  "law3verb": "One word",
+  "law3desc": "One sentence description",
+  "law4name": "Fourth law/principle name",
+  "law4verb": "One word",
+  "law4desc": "One sentence description",
+  "conclusionP1": "First conclusion paragraph",
+  "conclusionP2": "Second conclusion paragraph",
+  "finalQuote": "Memorable closing quote from the book",
+  "finalQuoteAuthor": "Author attribution"
+}`;
+
+    const userPrompt = fileContext
+      ? `Summarize this book content:\n\nTitle hint: ${bookTitle}\n\nContent:\n${fileContext.slice(0, 8000)}`
+      : `Summarize the book: "${bookTitle}"`;
+
+    const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer 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'
+      },
+      body: JSON.stringify({
+        model: 'meta/llama-3.1-70b-instruct',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 2500
+      })
+    });
+
+    setProgress(70, 'Processing AI response...', 'Parsing summary data');
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`API error ${response.status}: ${errText}`);
+    }
+
+    const data = await response.json();
+    const raw = data.choices?.[0]?.message?.content || '';
+
+    setProgress(85, 'Building your page...', 'Applying theme & layout');
+
+    // Parse JSON — strip any accidental fences
+    let summary;
+    try {
+      const cleaned = raw.replace(/```json|```/gi, '').trim();
+      summary = JSON.parse(cleaned);
+    } catch(e) {
+      // Try to extract JSON object from text
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (match) {
+        summary = JSON.parse(match[0]);
+      } else {
+        throw new Error('Could not parse AI response as JSON. Raw: ' + raw.slice(0, 200));
+      }
+    }
+
+    setProgress(95, 'Rendering page...', 'Almost done!');
+    await sleep(400);
+
+    renderOutputPage(summary, selectedTheme);
+
+    setProgress(100, 'Done!', '');
+    await sleep(300);
+
+    // Show output
+    ps.style.display = 'none';
+    document.getElementById('output-page').style.display = 'block';
+    document.getElementById('output-footer').style.display = 'block';
+    const fab = document.getElementById('fab-reset');
+    fab.style.display = 'flex';
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  } catch(err) {
+    ps.style.display = 'none';
+    document.getElementById('app-shell').style.display = 'flex';
+    document.getElementById('step-theme').style.display = 'block';
+    document.getElementById('step-input').style.display = 'none';
+    const errEl = document.getElementById('error-step2');
+    errEl.textContent = '⚠ ' + (err.message || 'Something went wrong. Please try again.');
+    errEl.style.display = 'block';
+  }
+}
+
+// ═══════════════════════════════════════════
+// RENDER OUTPUT PAGE
+// ═══════════════════════════════════════════
+const ICONS = [
+  `<svg viewBox="0 0 24 24" fill="none" stroke="VAR" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+  `<svg viewBox="0 0 24 24" fill="none" stroke="VAR" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+  `<svg viewBox="0 0 24 24" fill="none" stroke="VAR" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>`,
+  `<svg viewBox="0 0 24 24" fill="none" stroke="VAR" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+  `<svg viewBox="0 0 24 24" fill="none" stroke="VAR" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
+  `<svg viewBox="0 0 24 24" fill="none" stroke="VAR" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`,
+];
+
+function renderOutputPage(s, theme) {
+  const points = (s.keyPoints || []).slice(0, 6);
+  const pointsHTML = points.map((p, i) => `
+    <div class="point-card">
+      <span class="point-number">${i+1}</span>
+      <div class="point-icon">${ICONS[i % ICONS.length].replace('VAR', theme.primary)}</div>
+      <p class="point-title">${esc(p.title)}</p>
+      <p class="point-desc">${esc(p.desc)}</p>
+    </div>`).join('');
+
+  const html = `
+    <!-- HERO -->
+    <div class="hero">
+      <div>
+        <p class="hero-eyebrow">Book Summary</p>
+        <h1 class="hero-title">${esc(s.title)}<span>${esc(s.subtitle || '')}</span></h1>
+        <p class="hero-author">${esc(s.author)}${s.year ? ' · ' + esc(s.year) : ''}</p>
+        <p class="hero-tagline">${esc(s.tagline)}</p>
+      </div>
+      <div class="scroll-hint">
+        <span>Scroll</span>
+        <div class="scroll-line"></div>
+      </div>
+    </div>
+
+    <!-- OVERALL SUMMARY -->
+    <section class="summary-band">
+      <div class="container">
+        <p class="section-label">Overall Summary</p>
+        <h2 class="section-title">Small Changes, Remarkable Results</h2>
+        <p class="lead-text">${esc(s.overallSummary)}</p>
+        <div class="ornament">◆</div>
+        <p class="lead-text">${esc(s.overallSummary2)}</p>
+      </div>
+    </section>
+
+    <!-- CORE IDEA -->
+    <section class="core-idea">
+      <div class="container">
+        <p class="section-label">Core Idea</p>
+        <h2 class="section-title">${esc(s.coreIdeaTitle)}</h2>
+        <p class="lead-text" style="color:#bbb;">${esc(s.coreIdeaText)}</p>
+        <div class="quote-block"><p>"${esc(s.coreQuote)}"</p></div>
+        <p class="lead-text" style="color:#bbb;">${esc(s.coreLoopText)}</p>
+      </div>
+    </section>
+
+    <!-- KEY POINTS -->
+    <section class="key-points">
+      <div class="container">
+        <p class="section-label">Key Points</p>
+        <h2 class="section-title">${points.length} Powerful Lessons</h2>
+        <div class="points-grid">${pointsHTML}</div>
+      </div>
+    </section>
+
+    <!-- FOUR LAWS -->
+    <section class="four-laws">
+      <div class="container">
+        <p class="section-label">The Framework</p>
+        <h2 class="section-title">The Four Core Principles</h2>
+        <p style="color:#999; max-width:600px;">The complete system distilled into four actionable laws.</p>
+        <div class="laws-row">
+          ${[1,2,3,4].map(n => `
+          <div class="law-cell">
+            <div class="law-num">${n}</div>
+            <div class="law-name">${esc(s['law'+n+'name'])}</div>
+            <div class="law-verb">${esc(s['law'+n+'verb'])}</div>
+            <div class="law-desc">${esc(s['law'+n+'desc'])}</div>
+          </div>`).join('')}
+        </div>
+      </div>
+    </section>
+
+    <!-- CONCLUSION -->
+    <section class="conclusion">
+      <div class="container">
+        <p class="section-label">Conclusion</p>
+        <h2 class="section-title">The Bottom Line</h2>
+        <p class="lead-text">${esc(s.conclusionP1)}</p>
+        <p class="lead-text" style="margin-top:1.2rem;">${esc(s.conclusionP2)}</p>
+        <div class="final-quote">
+          "${esc(s.finalQuote)}"<br>
+          <span style="font-size:0.85rem; opacity:0.7; font-style:normal;">— ${esc(s.finalQuoteAuthor)}</span>
+        </div>
+      </div>
+    </section>
+  `;
+
+  document.getElementById('output-page').innerHTML = html;
+}
+
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+// ═══════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsText(file);
+  });
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function resetApp() {
+  document.getElementById('output-page').innerHTML = '';
+  document.getElementById('output-page').style.display = 'none';
+  document.getElementById('output-footer').style.display = 'none';
+  document.getElementById('fab-reset').style.display = 'none';
+  document.getElementById('app-shell').style.display = 'flex';
+  document.getElementById('step-input').style.display = 'block';
+  document.getElementById('step-theme').style.display = 'none';
+  document.getElementById('book-name').value = '';
+  document.getElementById('file-tag').style.display = 'none';
+  uploadedFile = null; bookInput = ''; selectedTheme = null;
+  window.scrollTo({ top: 0 });
+}
+</script>
+</body>
+</html>

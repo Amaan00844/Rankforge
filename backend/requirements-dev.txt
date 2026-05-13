@@ -1,0 +1,5 @@
+# Dev / test only — NOT installed in production (Railway)
+-r requirements.txt
+playwright==1.44.0
+pytest==8.2.0
+pytest-asyncio==0.23.7
