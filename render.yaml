@@ -2,16 +2,21 @@ services:
   - type: web
     name: rankforge-backend
     env: python
-    region: ohio # Change this if you prefer another region
+    region: ohio
     plan: free
-    buildCommand: "cd backend && pip install -r requirements.txt"
-    startCommand: "cd backend && bash run.sh"
+    rootDir: backend
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "bash run.sh"
     envVars:
+      - key: APP_NAME
+        value: "RankForge"
       - key: APP_ENV
         value: production
       - key: SECRET_KEY
         generateValue: true
       - key: DATABASE_URL
+        sync: false
+      - key: SYNC_DATABASE_URL
         sync: false
       - key: REDIS_URL
         sync: false
@@ -33,3 +38,4 @@ services:
         sync: false
       - key: ALLOWED_ORIGINS
         value: "https://frontend-lake-five-56.vercel.app"
+
