@@ -3,6 +3,7 @@ services:
     name: rankforge-backend
     env: python
     region: ohio # Change this if you prefer another region
+    plan: free
     buildCommand: "cd backend && pip install -r requirements.txt"
     startCommand: "cd backend && bash run.sh"
     envVars:
